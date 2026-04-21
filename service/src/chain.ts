@@ -8,57 +8,66 @@ const ABI = [
   "function getRequiredTypes() external view returns (string[])",
 ];
 
-let _provider: ethers.JsonRpcProvider;
-let _hook: ethers.Contract;
-let _requiredTypes: string[];
+interface HookState {
+  contract:      ethers.Contract;
+  requiredTypes: string[];
+  tree:          StandardMerkleTree<[string, string]> | null;
+}
 
-// Last built tree — kept in memory to serve proofs without rebuilding
-let _tree: StandardMerkleTree<[string, string]> | null = null;
+const _hooks = new Map<string, HookState>();
 
 export async function initChain(): Promise<void> {
-  _provider = new ethers.JsonRpcProvider(config.rpcUrl);
-  const signer = new ethers.Wallet(config.attesterKey, _provider);
-  _hook = new ethers.Contract(config.hookAddress, ABI, signer);
-  _requiredTypes = await _hook.getRequiredTypes();
-  console.log("Required credential types:", _requiredTypes);
+  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+  const signer   = new ethers.Wallet(config.attesterKey, provider);
+
+  for (const addr of config.hookAddresses) {
+    const contract      = new ethers.Contract(addr, ABI, signer);
+    const requiredTypes = await contract.getRequiredTypes() as string[];
+    _hooks.set(addr.toLowerCase(), { contract, requiredTypes, tree: null });
+    console.log(`Hook ${addr} — required types: ${requiredTypes.join(", ")}`);
+  }
 }
 
-// Rebuilds the in-memory tree from MongoDB without touching the chain.
-// Called on startup so proofs are available immediately after a restart.
-export async function restoreTree(): Promise<void> {
-  const docs = await holders().find({}).toArray();
+export async function restoreTree(hookAddress: string): Promise<void> {
+  const hook = _getHook(hookAddress);
+  const docs = await holders().find({ hookAddress: hookAddress.toLowerCase() }).toArray();
   if (docs.length === 0) return;
   const entries = docs.map((d) => [d.address, d.credentialType] as [string, string]);
-  _tree = StandardMerkleTree.of(entries, ["address", "string"]);
-  console.log(`Tree restored from DB: ${docs.length} entries, root=${_tree.root}`);
+  hook.tree = StandardMerkleTree.of(entries, ["address", "string"]);
+  console.log(`Hook ${hookAddress}: tree restored (${docs.length} entries, root=${hook.tree.root})`);
 }
 
-export async function rebuildAndUpdate(): Promise<void> {
-  const docs = await holders().find({}).toArray();
+export async function rebuildAndUpdate(hookAddress: string): Promise<void> {
+  const hook = _getHook(hookAddress);
+  const docs = await holders().find({ hookAddress: hookAddress.toLowerCase() }).toArray();
 
   if (docs.length === 0) {
-    console.log("No holders — skipping tree update");
+    console.log(`Hook ${hookAddress}: no holders — skipping`);
     return;
   }
 
   const entries = docs.map((d) => [d.address, d.credentialType] as [string, string]);
-  const tree = StandardMerkleTree.of(entries, ["address", "string"]);
+  const tree    = StandardMerkleTree.of(entries, ["address", "string"]);
 
-  console.log(`Rebuilding tree: ${docs.length} entries, root=${tree.root}`);
+  console.log(`Hook ${hookAddress}: rebuilding tree (${docs.length} entries, root=${tree.root})`);
 
-  const tx = await _hook.setMerkleRoot(tree.root);
+  const tx = await hook.contract.setMerkleRoot(tree.root);
   await tx.wait();
+  hook.tree = tree;
 
-  _tree = tree;
-  console.log(`setMerkleRoot tx confirmed: ${tx.hash}`);
+  console.log(`Hook ${hookAddress}: setMerkleRoot confirmed (${tx.hash})`);
 }
 
-export function getProof(address: string): { proof: string[]; proofFlags: boolean[] } | null {
-  if (!_tree || !_requiredTypes?.length) return null;
+export function getProof(
+  hookAddress: string,
+  address: string
+): { proof: string[]; proofFlags: boolean[] } | null {
+  const hook = _getHook(hookAddress);
+  if (!hook.tree) return null;
 
   const indices: number[] = [];
-  for (const type of _requiredTypes) {
-    for (const [i, [addr, t]] of _tree.entries()) {
+  for (const type of hook.requiredTypes) {
+    for (const [i, [addr, t]] of hook.tree.entries()) {
       if (addr.toLowerCase() === address.toLowerCase() && t === type) {
         indices.push(i);
         break;
@@ -66,8 +75,18 @@ export function getProof(address: string): { proof: string[]; proofFlags: boolea
     }
   }
 
-  if (indices.length !== _requiredTypes.length) return null;
+  if (indices.length !== hook.requiredTypes.length) return null;
 
-  const { proof, proofFlags } = _tree.getMultiProof(indices);
+  const { proof, proofFlags } = hook.tree.getMultiProof(indices);
   return { proof, proofFlags };
+}
+
+export function knownHooks(): string[] {
+  return [..._hooks.keys()];
+}
+
+function _getHook(hookAddress: string): HookState {
+  const hook = _hooks.get(hookAddress.toLowerCase());
+  if (!hook) throw new Error(`Unknown hook: ${hookAddress}`);
+  return hook;
 }

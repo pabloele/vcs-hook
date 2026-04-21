@@ -1,42 +1,38 @@
 import { rebuildAndUpdate } from "./chain.js";
 import { config } from "./config.js";
 
-let _timer: ReturnType<typeof setTimeout> | null = null;
+const _timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-// Schedule a rebuild after delayMs. If a timer is already active, ignore.
-export function scheduleDefault(): void {
-  if (_timer) return;
-  _schedule(config.defaultWindowMs);
+export function scheduleDefault(hookAddress: string): void {
+  const key = hookAddress.toLowerCase();
+  if (_timers.has(key)) return;
+  _schedule(key, config.defaultWindowMs);
 }
 
-// Reschedule with a custom delay. Cancels any existing timer.
-// delayMs === 0 → flush immediately.
-export function reschedule(delayMs: number): void {
-  if (_timer) {
-    clearTimeout(_timer);
-    _timer = null;
-  }
+export function reschedule(hookAddress: string, delayMs: number): void {
+  const key = hookAddress.toLowerCase();
+  const existing = _timers.get(key);
+  if (existing) { clearTimeout(existing); _timers.delete(key); }
   if (delayMs === 0) {
-    flush();
+    flush(hookAddress);
     return;
   }
-  _schedule(delayMs);
+  _schedule(key, delayMs);
 }
 
-export async function flush(): Promise<void> {
-  if (_timer) {
-    clearTimeout(_timer);
-    _timer = null;
-  }
-  await rebuildAndUpdate();
+export async function flush(hookAddress: string): Promise<void> {
+  const key = hookAddress.toLowerCase();
+  const existing = _timers.get(key);
+  if (existing) { clearTimeout(existing); _timers.delete(key); }
+  await rebuildAndUpdate(hookAddress);
 }
 
-function _schedule(delayMs: number): void {
-  console.log(`Batch window: rebuild in ${delayMs}ms`);
-  _timer = setTimeout(async () => {
-    _timer = null;
-    await rebuildAndUpdate().catch((err) =>
-      console.error("rebuildAndUpdate failed:", err)
+function _schedule(key: string, delayMs: number): void {
+  console.log(`Hook ${key}: rebuild in ${delayMs}ms`);
+  _timers.set(key, setTimeout(async () => {
+    _timers.delete(key);
+    await rebuildAndUpdate(key).catch((err) =>
+      console.error(`Hook ${key}: rebuildAndUpdate failed:`, err)
     );
-  }, delayMs);
+  }, delayMs));
 }

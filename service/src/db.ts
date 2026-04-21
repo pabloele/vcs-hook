@@ -2,6 +2,7 @@ import { MongoClient, Collection } from "mongodb";
 import { config } from "./config.js";
 
 export interface HolderDoc {
+  hookAddress:    string; // discriminator
   credentialId:   string;
   address:        string;
   credentialType: string;
@@ -14,8 +15,8 @@ export async function connectDb(): Promise<void> {
   await client.connect();
   const db = client.db(config.mongoDb);
   _collection = db.collection<HolderDoc>("merkle_holders");
-  await _collection.createIndex({ credentialId: 1 }, { unique: true });
-  await _collection.createIndex({ address: 1 });
+  await _collection.createIndex({ hookAddress: 1, credentialId: 1 }, { unique: true });
+  await _collection.createIndex({ hookAddress: 1, address: 1 });
 }
 
 export function holders(): Collection<HolderDoc> {
