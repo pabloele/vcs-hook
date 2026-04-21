@@ -93,19 +93,19 @@ const MAX_UINT160 = (1n << 160n) - 1n;
 const MAX_UINT48 = (1n << 48n) - 1n;
 
 console.log("\nApproving token0 → Permit2...");
-const approveTx0 = await token0.approve(PERMIT2, MAX_UINT256);
+const approveTx0 = await token0.approve(PERMIT2, MAX_UINT256, { gasLimit: 100_000n });
 await approveTx0.wait();
 
 console.log("Approving token1 → Permit2...");
-const approveTx1 = await token1.approve(PERMIT2, MAX_UINT256);
+const approveTx1 = await token1.approve(PERMIT2, MAX_UINT256, { gasLimit: 100_000n });
 await approveTx1.wait();
 
 console.log("Setting Permit2 allowance for token0 → PositionManager...");
-const permit2Tx0 = await permit2.approve(currency0, POSITION_MANAGER, MAX_UINT160, MAX_UINT48);
+const permit2Tx0 = await permit2.approve(currency0, POSITION_MANAGER, MAX_UINT160, MAX_UINT48, { gasLimit: 100_000n });
 await permit2Tx0.wait();
 
 console.log("Setting Permit2 allowance for token1 → PositionManager...");
-const permit2Tx1 = await permit2.approve(currency1, POSITION_MANAGER, MAX_UINT160, MAX_UINT48);
+const permit2Tx1 = await permit2.approve(currency1, POSITION_MANAGER, MAX_UINT160, MAX_UINT48, { gasLimit: 100_000n });
 await permit2Tx1.wait();
 
 // Step 2: Encode MINT_POSITION + SETTLE_PAIR actions
