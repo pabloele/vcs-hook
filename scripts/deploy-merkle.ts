@@ -86,7 +86,7 @@ console.log("Hook address:   ", hookAddress);
 console.log("Address bits:    0x" + (BigInt(hookAddress) & HOOK_MASK).toString(16), "== 0x80 ✓");
 
 const rawCalldata = ethers.concat([salt, initCode]);
-const tx = await deployer.sendTransaction({ to: CREATE2_FACTORY, data: rawCalldata });
+const tx = await deployer.sendTransaction({ to: CREATE2_FACTORY, data: rawCalldata, gasLimit: 5_000_000n });
 const receipt = await tx.wait();
 
 console.log("\nDeployed in tx: ", receipt!.hash);
