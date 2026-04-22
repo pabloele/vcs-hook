@@ -93,12 +93,12 @@ const MAX_UINT160 = (1n << 160n) - 1n;
 const MAX_UINT48 = (1n << 48n) - 1n;
 
 console.log("\nApproving tokenIn → Permit2...");
-const approveTx = await tokenInContract.approve(PERMIT2, MAX_UINT256);
+const approveTx = await tokenInContract.approve(PERMIT2, MAX_UINT256, { gasLimit: 100_000n });
 const approveReceipt = await approveTx.wait();
 console.log(`  ERC20 approve tx: ${approveReceipt!.hash} (status: ${approveReceipt!.status})`);
 
 console.log("Setting Permit2 allowance → UniversalRouter...");
-const permit2Tx = await permit2.approve(tokenIn, UNIVERSAL_ROUTER, MAX_UINT160, MAX_UINT48);
+const permit2Tx = await permit2.approve(tokenIn, UNIVERSAL_ROUTER, MAX_UINT160, MAX_UINT48, { gasLimit: 100_000n });
 const permit2Receipt = await permit2Tx.wait();
 console.log(`  Permit2 approve tx: ${permit2Receipt!.hash} (status: ${permit2Receipt!.status})`);
 
@@ -186,7 +186,7 @@ if (p2Amount < amountIn) {
 const balanceBefore = await tokenOutContract.balanceOf(signer.address);
 
 console.log("\nExecuting swap...");
-const tx = await universalRouter.execute(commands, [v4Input], deadline);
+const tx = await universalRouter.execute(commands, [v4Input], deadline, { gasLimit: 500_000n });
 console.log(`Tx sent: ${tx.hash}`);
 await tx.wait();
 
