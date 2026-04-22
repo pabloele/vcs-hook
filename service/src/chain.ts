@@ -51,7 +51,7 @@ export async function rebuildAndUpdate(hookAddress: string): Promise<void> {
 
   console.log(`Hook ${hookAddress}: rebuilding tree (${docs.length} entries, root=${tree.root})`);
 
-  const tx = await hook.contract.setMerkleRoot(tree.root);
+  const tx = await hook.contract.setMerkleRoot(tree.root, { gasLimit: 100_000n });
   await tx.wait();
   hook.tree = tree;
 
