@@ -42,7 +42,11 @@ export async function rebuildAndUpdate(hookAddress: string): Promise<void> {
   const docs = await holders().find({ hookAddress: hookAddress.toLowerCase() }).toArray();
 
   if (docs.length === 0) {
-    console.log(`Hook ${hookAddress}: no holders — skipping`);
+    console.log(`Hook ${hookAddress}: no holders — clearing tree and zeroing root`);
+    const tx = await hook.contract.setMerkleRoot(ethers.ZeroHash, { gasLimit: 100_000n });
+    await tx.wait();
+    hook.tree = null;
+    console.log(`Hook ${hookAddress}: root zeroed (${tx.hash})`);
     return;
   }
 
