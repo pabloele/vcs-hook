@@ -39,17 +39,22 @@ function computeCreate2Address(deployer: string, salt: string, initCodeHash: str
   return "0x" + ethers.keccak256(data).slice(26);
 }
 
-function mineSalt(
+async function mineSalt(
   deployerAddress: string,
   initCodeHash: string,
   targetBits: bigint,
-  mask: bigint
-): { salt: string; address: string } {
+  mask: bigint,
+  provider: ethers.Provider
+): Promise<{ salt: string; address: string }> {
   for (let i = 0x1000000n; ; i++) {
     const salt = ethers.zeroPadValue(ethers.toBeHex(i), 32);
     const addr = computeCreate2Address(deployerAddress, salt, initCodeHash);
     if ((BigInt(addr) & mask) === targetBits) {
-      return { salt, address: addr };
+      const code = await provider.getCode(addr);
+      if (code === "0x") {
+        return { salt, address: addr };
+      }
+      console.log(`  skipping ${addr} (already deployed)`);
     }
   }
 }
@@ -80,7 +85,7 @@ const initCode     = (hookFactory.bytecode as string) + constructorArgs.slice(2)
 const initCodeHash = ethers.keccak256(initCode);
 
 console.log("\nMining CREATE2 salt (target bits: 0x80 in lower 14 bits)...");
-const { salt, address: hookAddress } = mineSalt(CREATE2_FACTORY, initCodeHash, HOOK_FLAGS, HOOK_MASK);
+const { salt, address: hookAddress } = await mineSalt(CREATE2_FACTORY, initCodeHash, HOOK_FLAGS, HOOK_MASK, hre.provider);
 console.log("Salt found:     ", salt);
 console.log("Hook address:   ", hookAddress);
 console.log("Address bits:    0x" + (BigInt(hookAddress) & HOOK_MASK).toString(16), "== 0x80 ✓");
