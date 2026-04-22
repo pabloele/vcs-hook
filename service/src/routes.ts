@@ -77,6 +77,32 @@ router.post("/:hook/flush", async (req: Request, res: Response) => {
   }
 });
 
+// GET /:hook/holders — list all holders for a hook
+router.get("/:hook/holders", async (req: Request, res: Response) => {
+  const hook = resolveHook(req, res);
+  if (!hook) return;
+
+  const docs = await holders().find({ hookAddress: hook }, { projection: { _id: 0 } }).toArray();
+  res.json({ holders: docs });
+});
+
+// POST /:hook/holders/remove-by-address
+// Body: { address }
+router.post("/:hook/holders/remove-by-address", async (req: Request, res: Response) => {
+  const hook = resolveHook(req, res);
+  if (!hook) return;
+
+  const { address } = req.body;
+  if (!address) {
+    res.status(400).json({ error: "address is required" });
+    return;
+  }
+
+  const result = await holders().deleteMany({ hookAddress: hook, address: address.toLowerCase() });
+  scheduleDefault(hook);
+  res.json({ ok: true, deleted: result.deletedCount });
+});
+
 // GET /:hook/proof?address=0x...
 router.get("/:hook/proof", (req: Request, res: Response) => {
   const hook = resolveHook(req, res);
