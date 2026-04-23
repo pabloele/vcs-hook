@@ -67,16 +67,22 @@ contract VCAccessHook is BaseHook {
         address sender,
         PoolKey calldata,
         SwapParams calldata,
-        bytes calldata
+        bytes calldata hookData
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
-        bytes32 uid = attestationUID[sender];
-        if (uid == bytes32(0)) revert NotAuthorized(sender);
+        // If hookData contains a 20-byte address, use it as the real user (router case).
+        // Otherwise fall back to sender (direct call).
+        address user = hookData.length >= 20
+            ? address(bytes20(hookData[:20]))
+            : sender;
+
+        bytes32 uid = attestationUID[user];
+        if (uid == bytes32(0)) revert NotAuthorized(user);
 
         Attestation memory att = IEAS(eas).getAttestation(uid);
 
-        if (att.schema != schemaUID) revert NotAuthorized(sender);
-        if (att.revocationTime != 0) revert NotAuthorized(sender);
-        if (att.expirationTime != 0 && att.expirationTime <= block.timestamp) revert NotAuthorized(sender);
+        if (att.schema != schemaUID) revert NotAuthorized(user);
+        if (att.revocationTime != 0) revert NotAuthorized(user);
+        if (att.expirationTime != 0 && att.expirationTime <= block.timestamp) revert NotAuthorized(user);
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }

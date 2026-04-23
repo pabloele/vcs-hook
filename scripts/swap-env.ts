@@ -113,9 +113,11 @@ const { proof: merkleProof, proofFlags: merkleProofFlags } = await proofRes.json
 console.log(`Proof: ${JSON.stringify(merkleProof)}`);
 console.log(`Flags: ${JSON.stringify(merkleProofFlags)}`);
 
+// MerkleAccessHook hookData: abi.encode(bytes32[] proof, bool[] proofFlags)
+// The contract identifies the swapper via tx.origin — no need to pass the address.
 const hookData = ethers.AbiCoder.defaultAbiCoder().encode(
-  ["address", "bytes32[]", "bool[]"],
-  [signer.address, merkleProof, merkleProofFlags]
+  ["bytes32[]", "bool[]"],
+  [merkleProof, merkleProofFlags]
 );
 
 const poolKey = [currency0, currency1, fee, tickSpacing, hookAddress];

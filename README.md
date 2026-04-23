@@ -36,8 +36,8 @@ A Uniswap v4 hook that restricts access to a liquidity pool to wallets that hold
 ┌──────────────────────────────────────────────────────────────────────┐
 │                         Off-chain                                    │
 │                                                                      │
-│   VCS / vc-rest ──► admin-service ──► merkle-tree-service            │
-│   (credential issuer)  (orchestrator)  (tree builder + attester)     │
+│   VCS / vc-rest ──────────────────► merkle-tree-service              │
+│   (credential issuer)               (tree builder + attester)        │
 │                                              │                       │
 │                                              │ setMerkleRoot(root)   │
 └──────────────────────────────────────────────┼───────────────────────┘
@@ -143,9 +143,7 @@ Handles the full W3C Verifiable Credential lifecycle:
 - Credential issuance via OIDC4VCI
 - Credential status management (StatusList2021 revocation)
 
-The VCS server does **not** communicate directly with the merkle service. That bridge is handled by a webhook or admin call that posts to `POST /:hook/holders/add` or `POST /:hook/holders/remove` on the merkle service.
-
-**In this deployment:** the admin-service (Go, in the `VCS` repo) is the orchestrator that calls the merkle service when credentials are issued or revoked.
+The VCS server communicates directly with the merkle service via a built-in client (`pkg/merkle/client.go`). On credential issuance it calls `POST /:hook/holders/add`; on revocation it calls `POST /:hook/holders/remove`. Both calls are fire-and-forget — errors are logged but do not affect the credential lifecycle.
 
 ---
 
@@ -154,7 +152,7 @@ The VCS server does **not** communicate directly with the merkle service. That b
 ### Happy path (authorized swap)
 
 ```
-User               VCS/Admin          Merkle Service        Hook (on-chain)
+User               VCS / vc-rest      Merkle Service        Hook (on-chain)
  │                    │                     │                     │
  │── request VC ─────►│                     │                     │
  │◄── credential ─────│                     │                     │
@@ -172,7 +170,7 @@ User               VCS/Admin          Merkle Service        Hook (on-chain)
 ### Revocation path (swap blocked)
 
 ```
-Admin              Merkle Service        Hook (on-chain)
+VCS / vc-rest      Merkle Service        Hook (on-chain)
  │                     │                     │
  │── POST /remove ─────►│                     │
  │                     │── setMerkleRoot(0) ─►│

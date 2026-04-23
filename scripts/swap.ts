@@ -117,12 +117,11 @@ const { proof: merkleProof, proofFlags: merkleProofFlags } = await proofRes.json
 console.log(`Merkle proof: ${JSON.stringify(merkleProof)}`);
 console.log(`Proof flags:  ${JSON.stringify(merkleProofFlags)}`);
 
-// MerkleAccessHook hookData: abi.encode(address user, bytes32[] proof, bool[] proofFlags)
-// Pass address(0) to use msg.sender — but since we're going through the router,
-// msg.sender is the router. Pass the actual signer address instead.
+// MerkleAccessHook hookData: abi.encode(bytes32[] proof, bool[] proofFlags)
+// The contract identifies the swapper via tx.origin — no need to pass the address.
 const hookData = ethers.AbiCoder.defaultAbiCoder().encode(
-  ["address", "bytes32[]", "bool[]"],
-  [signer.address, merkleProof, merkleProofFlags]
+  ["bytes32[]", "bool[]"],
+  [merkleProof, merkleProofFlags]
 );
 
 // SWAP_EXACT_IN_SINGLE params: (ExactInputSingleParams)

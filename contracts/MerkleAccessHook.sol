@@ -72,20 +72,20 @@ contract MerkleAccessHook is BaseHook {
         });
     }
 
-    /// @dev hookData must be abi.encode(address user, bytes32[] proof, bool[] proofFlags).
-    ///      Pass address(0) as user to use msg.sender (direct swap, no router).
+    /// @dev hookData must be abi.encode(bytes32[] proof, bool[] proofFlags).
+    ///      The swapper identity is taken from tx.origin so it cannot be spoofed.
     function _beforeSwap(
-        address sender,
+        address,
         PoolKey calldata,
         SwapParams calldata,
         bytes calldata hookData
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         if (hookData.length == 0) revert InvalidHookData();
 
-        (address user, bytes32[] memory proof, bool[] memory proofFlags) =
-            abi.decode(hookData, (address, bytes32[], bool[]));
+        (bytes32[] memory proof, bool[] memory proofFlags) =
+            abi.decode(hookData, (bytes32[], bool[]));
 
-        if (user == address(0)) user = sender;
+        address user = tx.origin;
 
         uint256 n = requiredTypes.length;
         bytes32[] memory leaves = new bytes32[](n);

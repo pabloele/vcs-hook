@@ -12,7 +12,7 @@
  */
 
 import { network } from "hardhat";
-import { ContractFactory, ethers } from "ethers";
+import { ethers } from "ethers";
 
 const { ethers: hre } = await network.connect();
 
@@ -21,7 +21,7 @@ const { ethers: hre } = await network.connect();
 const EAS_ADDRESS = "0x4200000000000000000000000000000000000021";
 const SCHEMA_UID =
   "0xd7471474fdba6e0f59a1e83cb88256ce75e975c3c9e644cf18bf00330351db7f";
-const POOL_MANAGER_ADDRESS = "0x498581fF718922c3f8e6A244956aF099B2652b2b";
+const POOL_MANAGER_ADDRESS = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408";
 
 // Only BEFORE_SWAP_FLAG (bit 7) must be set; all other hook bits must be 0.
 // ALL_HOOK_MASK = (1 << 14) - 1 = 0x3FFF
@@ -55,7 +55,7 @@ function mineSalt(
   targetBits: bigint,
   mask: bigint
 ): { salt: string; address: string } {
-  for (let i = 0n; ; i++) {
+  for (let i = 0x1000000n; ; i++) {
     const salt = ethers.zeroPadValue(ethers.toBeHex(i), 32);
     const addr = computeCreate2Address(deployerAddress, salt, initCodeHash);
     if ((BigInt(addr) & mask) === targetBits) {
@@ -68,9 +68,6 @@ function mineSalt(
 
 const CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C";
 
-const CREATE2_FACTORY_ABI = [
-  "function deploy(uint256 value, bytes32 salt, bytes memory code) returns (address)",
-];
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
@@ -106,15 +103,15 @@ console.log(
   "== 0x80 ✓"
 );
 
-// Deploy via canonical CREATE2 factory
-const factory = new ethers.Contract(
-  CREATE2_FACTORY,
-  CREATE2_FACTORY_ABI,
-  deployer
-);
-const tx = await factory.deploy(0, salt, initCode);
+// Deploy via Arachnid's deterministic deployment proxy.
+// This factory takes raw calldata: salt (32 bytes) + initcode (no ABI encoding).
+const rawCalldata = ethers.concat([salt, initCode]);
+const tx = await deployer.sendTransaction({
+  to: CREATE2_FACTORY,
+  data: rawCalldata,
+});
 const receipt = await tx.wait();
-console.log("\nDeployed in tx:", receipt.hash);
+console.log("\nDeployed in tx:", receipt!.hash);
 console.log("VCAccessHook:", hookAddress);
 console.log("\nNext steps:");
 console.log(

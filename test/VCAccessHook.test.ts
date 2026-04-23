@@ -55,10 +55,18 @@ function validAttestation(holderAddr: string, uid: string) {
   };
 }
 
+// Direct call — sender is the user, no hookData needed
 async function callBeforeSwap(hook: any, senderAddr: string) {
   return hook
     .connect(poolManagerSigner)
     .beforeSwap(senderAddr, ZERO_POOL_KEY, ZERO_SWAP_PARAMS, "0x");
+}
+
+// Router call — sender is a router, real user passed in hookData (first 20 bytes)
+async function callBeforeSwapViaRouter(hook: any, routerAddr: string, userAddr: string) {
+  return hook
+    .connect(poolManagerSigner)
+    .beforeSwap(routerAddr, ZERO_POOL_KEY, ZERO_SWAP_PARAMS, userAddr.toLowerCase());
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -113,7 +121,24 @@ describe("VCAccessHook", () => {
       .withArgs(swapper.address);
   });
 
-  it("5. solo el attester puede llamar setAttestationUID", async () => {
+  it("5. permite el swap cuando el usuario viene en hookData (via router)", async () => {
+    const { mockEAS, hook } = await deploy();
+    const uid = ethers.hexlify(ethers.randomBytes(32));
+    const router = stranger; // simula el UniversalRouter como sender
+
+    await hook.connect(attester).setAttestationUID(swapper.address, uid);
+    await mockEAS.setAttestation(uid, validAttestation(swapper.address, uid));
+
+    // router no tiene UID, pero swapper viene en hookData → debe pasar
+    await expect(callBeforeSwapViaRouter(hook, router.address, swapper.address)).to.not.revert(ethers);
+
+    // si el usuario en hookData tampoco tiene UID → debe revertir
+    await expect(callBeforeSwapViaRouter(hook, router.address, router.address))
+      .to.be.revertedWithCustomError(hook, "NotAuthorized")
+      .withArgs(router.address);
+  });
+
+  it("6. solo el attester puede llamar setAttestationUID", async () => {
     const { hook } = await deploy();
     const uid = ethers.hexlify(ethers.randomBytes(32));
 
